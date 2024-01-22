@@ -23,7 +23,7 @@ setup(
     keywords="",
     author="LC",
     author_email="louiscoutel75@gmail.com",
-    url="",
+    url="git@github.com:LouisCoutel/python-mt.git",
     license="0BSD",
     packages=find_packages(exclude=["ez_setup", "examples", "tests"]),
     install_requires=[
