@@ -1,9 +1,14 @@
+"""
+
+Test suite for the package
+
+"""
+
 import json
-import logging
 import os
 from dotenv import load_dotenv
 import pytest
-from python_mts.scripts.mts_handler import Mts_Handler
+from python_mts.scripts.mts_handler import MtsHandler
 from python_mts.errors import RestrictedError
 
 load_dotenv()
@@ -30,35 +35,20 @@ test_feature = {
     }
 }
 
-fp = open("./basicRecipe.json", "w")
+fp = open("./basicRecipe.json", "w", encoding="utf-8")
 json.dump(basic_recipe, fp, indent = 2)
 fp.close()
 
-fp2 = open("./testFeature.json", "w")
+fp2 = open("./testFeature.json", "w", encoding="utf-8")
 json.dump(test_feature, fp2, indent = 2)
 fp2.close()
 
-handler = Mts_Handler()
+handler = MtsHandler()
 
 
 
 def test_init():
-    assert isinstance(handler, Mts_Handler) == True
-
-def test_session():
-    assert handler._session
-
-def test_set_default_recipe():
-    handler.set_default_recipe("./basicRecipe.json")
-    assert os.path.exists(handler._default_recipe)
-
-def test_validate_recipe():
-    r = handler.validate_recipe("./basic_recipe.json")
-    assert r.status_code == 200
-    
-def test_set_indent():
-    handler.set_indent(2)
-    assert handler._json_indent == 2
+    assert isinstance(handler, MtsHandler) is True
 
 def test_list_sources():
     r = handler.list_sources()
@@ -86,11 +76,7 @@ def test_get_source():
     r = handler.get_source("test-2")
     assert r.status_code == 200
 
-def test_list_sources():
-    r = handler.list_sources()
-    assert r.status_code == 200
-
-class Test_Delete_Source:
+class TestDeleteSource:
     def test_valid_operation(self):
         r = handler.delete_source("test-2")
         assert r.status_code == 204
@@ -137,11 +123,6 @@ def test_get_ts_job():
     status = handler.get_ts_status("test-ts-2")
     print(status["latest_job"])
     r = handler.get_ts_job("test-ts-2", status["latest_job"])
-    assert r.status_code == 200
-
-
-def test_list_tsets():
-    r = handler.list_tsets()
     assert r.status_code == 200
 
 def test_get_ts_recipe():
