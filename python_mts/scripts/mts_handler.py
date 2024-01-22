@@ -10,8 +10,8 @@ import base64
 import re
 from requests_toolbelt import MultipartEncoder, MultipartEncoderMonitor
 
-import mts_handler
-from mts_handler import utils, errors
+import python_mts
+from python_mts import utils, errors
 
 load_dotenv()
 

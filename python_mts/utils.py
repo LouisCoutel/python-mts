@@ -8,8 +8,8 @@ import numpy as np
 
 from jsonschema import validate, ValidationError
 from requests import Session
-from mts_handler import utils, errors
-import mts_handler
+from python_mts import utils, errors
+import python_mts
 import geojson
 import json
 
@@ -62,7 +62,7 @@ def validate_path(path):
     if not os.path.exists(path):
             raise AssertionError('Input should be a valid path')
 
-def _get_session(application=mts_handler.__name__, version=mts_handler.__version__):
+def _get_session(application=python_mts.__name__, version=python_mts.__version__):
     s = Session()
     s.headers.update({"user-agent": "{}/{}".format(application, version)})
     return s

@@ -2,7 +2,7 @@ import os
 from codecs import open as codecs_open
 from setuptools import setup, find_packages
 
-from mts_handler import __version__
+from python_mts import __version__
 
 # Get the long description from the relevant file
 with codecs_open("README.md", encoding="utf-8") as f:
@@ -24,7 +24,7 @@ setup(
     author="LC",
     author_email="louiscoutel75@gmail.com",
     url="",
-    license="BSD-2",
+    license="0BSD",
     packages=find_packages(exclude=["ez_setup", "examples", "tests"]),
     install_requires=[
         "boto3",

@@ -3,8 +3,8 @@ import logging
 import os
 from dotenv import load_dotenv
 import pytest
-from mts_handler.scripts.mts_handler import Mts_Handler
-from mts_handler.errors import RestrictedError
+from python_mts.scripts.mts_handler import Mts_Handler
+from python_mts.errors import RestrictedError
 
 load_dotenv()
 
