@@ -18,7 +18,7 @@ load_dotenv()
 class Mts_Handler_Base:
     def __init__(self):
         self._username: str = os.getenv("MAPBOX_USER_NAME")
-        self._token: str = os.getenv("MAPBOX_API_TOKEN")
+        self._token: str = os.getenv("MAPBOX_ACCESS_TOKEN")
         self._api = "https://api.mapbox.com"
         self._default_recipe: str
         self._json_indent: int = 4
