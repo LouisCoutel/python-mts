@@ -1,0 +1,17 @@
+{
+    "editor.tokenColorCustomizations": {
+        "[Ayu Mirage Bordered]": {
+            "textMateRules": [
+                {
+                    "scope": [
+                        "string.quoted.docstring.multi.python"
+                    ],
+                    "settings": {
+                        "foreground": "#d04f81"
+                    }
+                }
+            ]
+        }
+    },
+    "workbench.colorCustomizations": {}
+}
