@@ -1,0 +1,10 @@
+{
+  "version": 1,
+  "layers": {
+    "test": {
+      "source": "mapbox://tileset-source/louiscoutel/test-2",
+      "minzoom": 0,
+      "maxzoom": 5
+    }
+  }
+}
