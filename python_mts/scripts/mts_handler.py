@@ -20,7 +20,8 @@ class MtsHandlerBase:
     def __init__(self):
         self._username: str = os.getenv("MAPBOX_USER_NAME")
         self._token: str = os.getenv("MAPBOX_ACCESS_TOKEN")
-        self._api = "https://api.mapbox.com"
+        self.ts_api = "https://api.mapbox.com/tilesets/v1"
+        self.styles_api = "https://api.mapbox.com/styles/v1"
         self._default_recipe: str
         self._json_indent: int = 4
         self._attribution: json = None
@@ -98,9 +99,9 @@ class MtsHandlerBase:
         """
 
         if publish:
-            return f"{self._api}/tilesets/v1/{ts_id}/publish?access_token={self._token}"
+            return f"{self.ts_api}/{ts_id}/publish?access_token={self._token}"
 
-        return f"{self._api}/tilesets/v1/{ts_id}?access_token={self._token}"
+        return f"{self.ts_api}/{ts_id}?access_token={self._token}"
 
     def _mkurl_ts_jobs(self, ts_id: str, stage: str = None, limit: int = 100):
         """ Generate the URL needed for accessing a tileset's jobs
@@ -113,12 +114,13 @@ class MtsHandlerBase:
         Returns:
             URL (string): URL for accessing a tileset's jobs
         """
+        params = utils.filter_missing_params(
+            access_token=self._token, ts_id=ts_id, stage=stage, limit=limit)
 
-        url = f"{self._api}/tilesets/v1/{ts_id}/jobs?access_token={self._token}"
-        url = url + f"{self._api}&stage={stage}" if stage else url
-        url = url + f"{self._api}&limit={limit}" if limit else url
+        query_str = urlencode(params)
 
-        print(url)
+        url = f"{self.ts_api}/{ts_id}/jobs?&{query_str}"
+
         return url
 
     def _mkurl_tjson(self, handles: list[str], secure: bool):
@@ -143,7 +145,7 @@ class MtsHandlerBase:
             if not utils.validate_tileset_id(ts_id):
                 raise errors.TilesetNameError(ts_id)
 
-        url = f"{self._api}/v4/{','.join(ids)}.json?access_token={self._token}"
+        url = f"https://api.mapbox.com/v4/{','.join(ids)}.json?access_token={self._token}"
 
         if secure:
             url = url + "&secure"
@@ -161,7 +163,7 @@ class MtsHandlerBase:
             URL (string): URL for accessing a tileset job
         """
 
-        return f"{self._api}/tilesets/v1/{ts_id}/jobs/{job_id}?access_token={self._token}"
+        return f"{self.ts_api}/{ts_id}/jobs/{job_id}?access_token={self._token}"
 
     def _mkurl_tslist(self,
                       ts_type: str = None,
@@ -186,11 +188,14 @@ class MtsHandlerBase:
             URL (string): URL for tileset list
         """
 
-        url = f"{self._api}/tilesets/v1/{self._username}?access_token={self._token}"
-        url = f"{url}&limit={limit}" if limit else url
-        url = f"{url}&type={ts_type}" if ts_type else url
-        url = f"{url}&visibility={visibility}" if visibility else url
-        url = f"{url}&sortby={sortby}" if sortby else url
+        params = utils.filter_missing_params(access_token=self._token,
+                                             ts_type=ts_type,
+                                             limit=limit,
+                                             visibility=visibility,
+                                             sortby=sortby)
+        query_str = urlencode(params)
+
+        url = f"{self.ts_api}/{self._username}?{query_str}"
 
         return url
 
@@ -204,7 +209,7 @@ class MtsHandlerBase:
             URL (string): URL for tileset recipe
         """
 
-        return f"{self._api}/tilesets/v1/{ts_id}/recipe?access_token={self._token}"
+        return f"{self.ts_api}/{ts_id}/recipe?access_token={self._token}"
 
     def _mkurl_val_rcp(self):
         """ Generate the URL needed for validating a tileset recipe
@@ -212,7 +217,7 @@ class MtsHandlerBase:
         Returns:
             URL (string): URL for recipe validation
         """
-        return f"{self._api}/tilesets/v1/validateRecipe?access_token={self._token}"
+        return f"{self.ts_api}/validateRecipe?access_token={self._token}"
 
     def _mkurl_src(self, src_id: str):
         """ Generate the URL needed to access a specific source
@@ -224,8 +229,7 @@ class MtsHandlerBase:
             URL (string): URL for source
 
         """
-        return f"{self._api}/tilesets/v1/sources/{self._username}"\
-            f"/{src_id}?access_token={self._token}"
+        return f"{self.ts_api}/sources/{self._username}/{src_id}?access_token={self._token}"
 
     def _mkurl_srclist(self):
         """ Generate the URL needed to list sources
@@ -234,7 +238,7 @@ class MtsHandlerBase:
             URL (string): URL for source list
         """
 
-        return f"{self._api}/tilesets/v1/sources/{self._username}?access_token={self._token}"
+        return f"{self.ts_api}/sources/{self._username}?access_token={self._token}"
 
     def _mkurl_activity(self,
                         sortby: str = "requests",
@@ -254,16 +258,25 @@ class MtsHandlerBase:
         Returns:
             URL (string): URL for activity report
         """
-        params = {
-            "access_token": self._token,
-            "sortby": sortby,
-            "orderby": orderby,
-            "limit": limit,
-            "start": start,
-        }
-        params = {k: v for k, v in params.items() if v}
-        query_string = urlencode(params)
-        return f"{self._api}/activity/v1/{self._username}/tilesets?{query_string}"
+
+        params = utils.filter_missing_params(
+            sortby=sortby, orderby=orderby, limit=limit, start=start)
+
+        query_str = urlencode(params)
+
+        return f"https://api.mapbox.com/activity/v1/{self._username}/tilesets?{query_str}"
+
+    def _mkurl_liststyles(self, draft: bool = False, limit: int = None, start_id: str = None):
+        """ Generate the URL needed to list styles"""
+        params = utils.filter_missing_params(
+            access_token=self._token, limit=limit, start_id=start_id)
+
+        query_str = urlencode(params)
+
+        url = f"{self.styles_api}/{self._username}"
+        url = url + "/draft" if draft else url
+
+        return url + f"?{query_str}"
 
     # REQUESTS UTILS
     def reformat_geojson(self, file, paths: list[str]):
@@ -383,7 +396,7 @@ class MtsHandlerBase:
         """
         ts_id = self._username + "." + handle
         if not utils.validate_tileset_id(ts_id):
-            logging.error(ts_id)
+            raise errors.TilesetNameError(ts_id)
 
         url = self._mkurl_ts(ts_id)
         body = self._mkbody_tileset(name, private, desc, recipe_path)
@@ -498,7 +511,7 @@ class MtsHandlerBase:
 
         return status
 
-    def get_tilejson(self, handles: str or list[str], secure: bool = True):
+    def get_tilejson(self, handles, secure: bool = True):
         """ Get a tileset's corresponding tileJson data
 
         Args:
@@ -648,7 +661,7 @@ class MtsHandlerBase:
             raise errors.TilesetsError(r.text)
 
     # SOURCE OPERATIONS
-    def validate_source(self, paths: str or list[str]):
+    def validate_source(self, paths):
         """ Check if a source is valid according to Mapbox's specification
 
         Args:
@@ -667,40 +680,19 @@ class MtsHandlerBase:
 
         return True
 
-    def validate_source_id(self, value: str):
-        """ Check if a source ID is valid according to Mapbox's specifications
-
-        Args:
-            value (string): String ID to validate.
-
-        Raises:
-            AssertionError: ID is not valid.
-
-        Returns:
-            True (bool): Source ID is valid
-        """
-
-        if re.match("^[a-zA-Z0-9-_]{1,32}$", value):
-            return True
-        raise AssertionError(
-            'Invalid TS ID. Max-length: 32 chars and only include "-", "_", and alphanumeric chars.'
-        )
-
     def upload_source(
             self,
             src_id: str,
-            paths: str or list[str],
+            paths,
             replace: bool = False
     ):
         """ Upload a source to Mapbox's cloud storage.
 
         Args:
-            src_id (str): ID for the source to be created or an existing source
+            src_id (str): ID for the source to be created or an existing source.
             paths (string or list[str]): Path or list of paths of GeoJSON files.
             no_validation (bool, optional): Skip source validation. Defaults to False.
-            replace (bool, optional): Replace an existing source. Defaults to False.
-
-        """
+            replace (bool, optional): Replace an existing source. Defaults to False. """
 
         paths = utils.enforce_islist(paths)
         url = self._mkurl_src(src_id)
@@ -731,23 +723,17 @@ class MtsHandlerBase:
         raise errors.TilesetsError(r.text)
 
     def get_source(self, src_id: str):
-        """ Get a source
+        """ Retrieve a source informations.
 
         Args:
-            src_id (str): Source ID
+            src_id (str): Source ID. """
 
-        Raises:
-            errors.TilesetsError: Mapbox Custom Exception
-
-        Returns:
-            r: API response
-        """
         url = self._mkurl_src(src_id)
         r = self._session.get(url)
 
         if r.status_code == 200:
-            print(json.dumps(r.json(), indent=self._json_indent))
-            return r
+            content = r.json()
+            return content
 
         raise errors.TilesetsError(r.text)
 
@@ -755,15 +741,11 @@ class MtsHandlerBase:
         """ Delete a specifc source
 
         Args:
-            src_id (str): Source ID 
+            src_id (str): Source ID.
 
         Raises:
-            errors.TilesetsError: Mapbox Custom Exception
-            e: Re-raised Mapbox Exception
-
-        Returns:
-            r: API response
-        """
+            errors.TilesetsError:  custom exception.
+            e: Re-raised Mapbox exception. """
 
         utils.time_check("deletion-src")
         url = self._mkurl_src(src_id)
@@ -777,14 +759,7 @@ class MtsHandlerBase:
         raise errors.TilesetsError(r.text)
 
     def list_sources(self):
-        """ List all currently uploaded sources
-
-        Raises:
-            errors.TilesetsError: Mapbox Custom Exception
-
-        Returns:
-            r: API response
-        """
+        """ List all currently uploaded sources """
 
         url = self._mkurl_srclist()
         r = self._do_get(url)
@@ -799,29 +774,20 @@ class MtsHandlerBase:
 
     def estimate_area(
             self,
-            features: list[str] or str,
+            features,
             precision: str,
             no_validation: bool = False,
             force_1cm: bool = False
     ):
-        """ Estimate the total area covered by a tileset in order to estimate pricing
+        """ Estimate the total area covered by a tileset in order to estimate pricing.
 
         Args:
-            features (list[str] or str): List of GeoJSON feature
-            precision (str): Selected estimate precision
+            features: List of GeoJSON features.
+            precision (str): Selected estimate precision.
             no_validation (bool, optional): Skip validation. Defaults to False.
             force_1cm (bool, optional): Force 1cm precision. 
                 This is an optional feature that needs to be agreed on with Mapbox's teams.
-                Defaults to False.
-
-        Raises:
-            errors.TilesetsError: Mapbox Custom Exception
-            errors.TilesetsError: Mapbox Custom Exception
-            errors.TilesetsError: Mapbox Custom Exception
-
-        Returns:
-            r (API Response): Tileset area estimate
-        """
+                Defaults to False. """
 
         features = utils.enforce_islist(features)
         features = map(utils.load_feature, features)
@@ -878,11 +844,6 @@ class MtsHandlerBase:
             limit (int, optional): Max number of listed operations. Defaults to 100.
             start (str, optional): Pagination key. Defaults to None.
 
-        Raises:
-            errors.TilesetsError: Custom Mapbox Exception
-
-        Returns:
-            result (dict): API response and pagination key for chaining requests.
         """
 
         url = self._mkurl_activity(sortby, orderby, limit, start)
@@ -901,6 +862,25 @@ class MtsHandlerBase:
             return result
 
         raise errors.TilesetsError(r.text)
+
+    def list_styles(self, draft: bool = False, limit: int = None, start_id: str = None):
+        """ Retrieve a list of styles.
+
+        Args:
+            draft (bool, optional): Request draft styles only. Defaults to False.
+            limit (int, optional): Set a limit to the number of styles listed. Defaults to None.
+            start_id (str, optional): Start the list at a specific style ID. Defaults to None.
+
+        """
+
+        url = self._mkurl_liststyles(draft, limit, start_id)
+
+        r = self._do_get(url)
+
+        if r.status_code == 200:
+            return r
+
+        raise errors.StylesError("Unable to fetch list of styles")
 
 
 class MtsHandler(MtsHandlerBase, metaclass=utils.Singleton):
