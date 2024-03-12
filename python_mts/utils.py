@@ -39,22 +39,45 @@ def load_feature(path):
         return geojson.load(file)
 
 
-def get_token():
-    """ Get access token from .env """
-    token = os.getenv("MAPBOX_ACCESS_TOKEN")
+def filter_missing_params(**params):
+    """ Turn params into a dict and remove none values"""
+    return {k: v for k, v in params.items() if v}
 
-    if token is not None:
-        return token
 
-    logging.error(
-        "No access token provided."
-        "Please set the MAPBOX_ACCESS_TOKEN environment variable"
-        "or use the --token flag."
+def validate_source_id(src_id: str):
+    """ Check if a source ID is valid according to Mapbox's specifications
+
+    Args:
+        src_id (string): String ID to validate.
+
+    Raises:
+        AssertionError: ID is not valid.
+
+    Returns:
+        True (bool): Source ID is valid. """
+
+    if re.match("^[a-zA-Z0-9-_]{1,32}$", src_id):
+        return True
+    raise AssertionError(
+        'Invalid TS ID. Max-length: 32 chars and only include "-", "_", and alphanumeric chars.'
     )
 
 
-def enforce_islist(val: str or list[str]):
-    """ Wraps a string in a list or do nothing if it is already a list """
+def get_token():
+    """ Get access token from .env. """
+
+    token = os.getenv("MAPBOX_ACCESS_TOKEN")
+
+    if token:
+        return token
+
+    raise errors.TilesetsError(
+        "No access token provided. Please set the MAPBOX_ACCESS_TOKEN env var")
+
+
+def enforce_islist(val):
+    """ Wraps a string in a list or do nothing if it is already a list. """
+
     if isinstance(val, str):
         return [val]
 
