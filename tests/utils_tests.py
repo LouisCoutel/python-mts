@@ -1,7 +1,7 @@
 """ Test utilities. """
 
 import pytest
-from python_mts import utils
+from python_mts import utils, area_utils
 
 
 feature_dict = {
@@ -41,4 +41,4 @@ def test_calc_area():
     features = [utils.load_feature("./testFeature.json"),
                 utils.load_feature("./testFeature.json")]
 
-    assert isinstance(utils.calculate_tiles_area(features, "10m"), float)
+    assert isinstance(area_utils.calculate_tiles_area(features, "10m"), int)
