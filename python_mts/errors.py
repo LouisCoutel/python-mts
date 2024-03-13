@@ -9,8 +9,8 @@ class TilesetsError(Exception):
         self.message = message
 
 
-class TilesetNameError(TilesetsError):
-    """Not a valid tileset id"""
+class InvalidId(TilesetsError):
+    """ Not a valid tileset id. """
 
     def __init__(self, tileset_id):
         """ Exception constructor """
@@ -28,3 +28,13 @@ class StylesError(Exception):
         """ Exception constructor """
 
         self.message = message
+
+
+class InvalidGeoJSON(Exception):
+    """ Data is not valid GeoJSON """
+
+    def __init__(self, index, feature: dict):
+        """ Exception constructor """
+
+        self.message = f"Feature at index {index} is not valid GeoJSON data."
+        self.feature = feature
