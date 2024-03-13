@@ -1,6 +1,5 @@
 """ This module exposes a handler class for Mapbox Tiling Service and Mapbox's API operations. """
 import json
-import logging
 import os
 import tempfile
 from urllib.parse import urlparse, parse_qs
@@ -9,7 +8,7 @@ from dotenv import load_dotenv
 from requests_toolbelt import MultipartEncoder
 from supermercado.super_utils import filter_features
 
-from python_mts import utils, errors
+from python_mts import area_utils, utils, errors
 from python_mts.urls import Urls
 from python_mts.client import Client
 
@@ -97,8 +96,8 @@ class MtsHandlerBase:
                 Defaults to False. """
 
         ts_id = self._username + "." + handle
-        if not utils.validate_tileset_id(ts_id):
-            raise errors.InvalidId(ts_id)
+
+        utils.validate_tileset_id(ts_id)
 
         url = self.urls.mkurl_ts(ts_id)
         body = self._mkbody_tileset(name, private, desc, recipe_path)
@@ -121,18 +120,12 @@ class MtsHandlerBase:
         ts_id = self._username + "." + handle
         url = self.urls.mkurl_ts(ts_id, publish=True)
         r = self.client.do_post(url)
+
         if r.status_code == 200:
-            response_msg = r.json()
-            print(json.dumps(response_msg))
-            studio_url = f"https://studio.mapbox.com/tilesets/{ts_id}"
-            msg = f"Tileset job received. Visit {studio_url} to view the status of your tileset."
-            print(msg)
+            content = r.json()
+            return content
 
-        else:
-            logging.error(r.text)
-
-        content = r.json()
-        return content
+        raise errors.TilesetsError(r.text)
 
     def update_ts(self, handle: str, name: str = None, desc: str = None, private: bool = False):
         """ Update a tileset's informations.
@@ -167,19 +160,13 @@ class MtsHandlerBase:
         ts_id = self._username + "." + handle
         url = self.urls.mkurl_ts(ts_id)
 
-        try:
-            r = self.client.do_del(url)
-            with open("deletion-ts.txt", "w", encoding="utf-8") as f:
-                f.close()
+        r = self.client.do_del(url)
 
-            if r.status_code in (200, 204):
-                content = r.json()
-                return content
+        if r.status_code in (200, 204):
+            content = r.json()
+            return content
 
-            raise errors.TilesetsError(r.text)
-
-        except errors.TilesetsError as e:
-            raise e
+        raise errors.TilesetsError(r.text)
 
     def get_ts_status(self, handle: str):
         """ Get a tileset's current status.
@@ -406,60 +393,6 @@ class MtsHandlerBase:
 
         raise errors.TilesetsError(r.text)
 
-    def estimate_area(
-            self,
-            features,
-            precision: str,
-            no_validation: bool = False,
-            force_1cm: bool = False
-    ):
-        """ Estimate the total area covered by a tileset in order to estimate pricing.
-
-        Args:
-            features: List of GeoJSON features.
-            precision (str): Selected estimate precision.
-            no_validation (bool, optional): Skip validation.
-                Defaults to False.
-            force_1cm (bool, optional): Force 1cm precision. 
-                This is an optional feature that needs to be agreed on with Mapbox's teams.
-                Defaults to False. """
-
-        features = utils.enforce_islist(features)
-        features = map(utils.load_feature, features)
-
-        area = 0
-        if precision == "1cm" and not force_1cm:
-            raise errors.TilesetsError(
-                "The force_1cm arg must be present and the option must \
-                be enabled through Mapbox support.")
-        if precision != "1cm" and force_1cm:
-            raise errors.TilesetsError(
-                "The force_1cm arg is enabled but the precision is not 1cm."
-            )
-
-        try:
-            # expect users to bypass source validation when users rerun
-            # if their features passed validation previously
-            if not no_validation:
-                features = utils.validate_stream(features)
-            # It is a list because calculate_tiles_area does not work with a stream
-            features = list(filter_features(features))
-        except (ValueError, json.decoder.JSONDecodeError) as exc:
-            raise errors.TilesetsError(
-                "Error with feature parsing."
-                "Ensure that feature inputs are valid and formatted correctly."
-            ) from exc
-
-        area = utils.calculate_tiles_area(features, precision)
-        area = str(int(round(area)))
-        message = json.dumps({
-            "km2": area,
-            "precision": precision,
-            "pricing_docs": "https://www.mapbox.com/pricing/#tilesets",
-        })
-
-        return message
-
     def list_activity(
             self,
             sortby: str = "requests",
@@ -493,6 +426,29 @@ class MtsHandlerBase:
             return result
 
         raise errors.TilesetsError(r.text)
+
+    def estimate_area(self, features: list[str], precision: str):
+        """ Estimate the total area covered by a tileset in order to estimate pricing.
+
+        Args:
+            features: List of GeoJSON features.
+            precision (str): Selected estimate precision.
+            no_validation (bool, optional): Skip validation.
+                Defaults to False.
+            force_1cm (bool, optional): Force 1cm precision. 
+                This is an optional feature that needs to be agreed on with Mapbox's teams.
+                Defaults to False. """
+
+        features = utils.enforce_islist(features)
+        features = map(utils.load_feature, features)
+        features = utils.validate_stream(features)
+
+        # It is a list because calculate_tiles_area does not work with a stream
+        features = list(filter_features(features))
+
+        area = area_utils.calculate_tiles_area(features, precision)
+
+        return f"{area}km2"
 
     def list_styles(self, draft: bool = False, limit: int = None, start_id: str = None):
         """ Retrieve a list of styles.

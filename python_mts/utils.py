@@ -5,10 +5,8 @@ import re
 import json
 import time
 
-import numpy as np
 from requests import Session
 import geojson
-from supermercado.burntiles import burn
 import python_mts
 from python_mts import errors
 
@@ -135,7 +133,10 @@ def validate_tileset_id(tileset_id: str):
 
     pattern = r"^[a-z0-9-_]{1,32}\.[a-z0-9-_]{1,32}$"
 
-    return re.match(pattern, tileset_id, flags=re.IGNORECASE)
+    if re.match(pattern, tileset_id, flags=re.IGNORECASE):
+        return True
+
+    raise errors.InvalidId(tileset_id)
 
 
 def paths_to_features(iterable: list[str]):
@@ -153,67 +154,17 @@ def paths_to_features(iterable: list[str]):
 def validate_stream(features):
     """ Validate a stream of geoJSON features """
 
-    for index, feature in enumerate(features):
-        validate_geojson(index, feature)
+    for feature in features:
+        validate_geojson(feature)
 
         yield feature
 
 
-def validate_geojson(index, feature: dict):
+def validate_geojson(feature: dict):
     """ Validate a geoJSON file according to Mapbox's specifications """
 
     if not feature.is_valid:
-        raise errors.InvalidGeoJSON(index, feature)
-
-
-def _convert_precision_to_zoom(precision: str):
-    """ Convert a precision value from string to a Mapbox zoom level """
-    if precision == "10m":
-        return 6
-
-    if precision == "1m":
-        return 11
-
-    if precision == "30cm":
-        return 14
-
-    return 17
-
-
-def _tile2lng(tile_x: int, zoom: int):
-    """ Calculate a tile's longitude from it's x-axis and zoom level """
-
-    return ((tile_x / 2**zoom) * 360.0) - 180.0
-
-
-def _tile2lat(tile_y: int, zoom: int):
-    """ Calculate a tile's latitude from it's y-axis and zoom level """
-
-    n = np.pi - 2 * np.pi * tile_y / 2**zoom
-
-    return (180.0 / np.pi) * np.arctan(0.5 * (np.exp(n) - np.exp(-n)))
-
-
-def _calculate_tile_area(tile: list):
-    """ Calculate a tile's area.
-
-    Args:
-        tile (list): List of tiles.
-    Returns:
-        area (float) """
-
-    EARTH_RADIUS = 6371.0088
-    left = np.deg2rad(_tile2lng(tile[:, 0], tile[:, 2]))
-    top = np.deg2rad(_tile2lat(tile[:, 1], tile[:, 2]))
-    right = np.deg2rad(_tile2lng(tile[:, 0] + 1, tile[:, 2]))
-    bottom = np.deg2rad(_tile2lat(tile[:, 1] + 1, tile[:, 2]))
-
-    return (
-        (np.pi / np.deg2rad(180))
-        * EARTH_RADIUS**2
-        * np.abs(np.sin(top) - np.sin(bottom))
-        * np.abs(left - right)
-    )
+        raise errors.InvalidGeoJSON(feature)
 
 
 def reformat_geojson(file, paths: list[str]):
@@ -224,10 +175,10 @@ def reformat_geojson(file, paths: list[str]):
         no_validation (bool, optional): Skip validation.
             Defaults to False. """
 
-    for index, path in enumerate(paths):
+    for path in paths:
         feature = load_feature(path)
 
-        validate_geojson(index, feature)
+        validate_geojson(feature)
 
         file.write(
             (json.dumps(feature, separators=(",", ":")) + "\n").encode("utf-8")
@@ -262,29 +213,14 @@ def validate_source(paths):
 
     paths = enforce_islist(paths)
 
-    for index, path in enumerate(paths):
+    for path in paths:
         validate_path(path)
 
         ft = load_feature(path)
 
-        validate_geojson(index, ft)
+        validate_geojson(ft)
 
     return True
-
-
-def calculate_tiles_area(features: list, precision: str):
-    """ Calculate features area.
-
-    Args:
-        features (list): List of features
-        precision (str): Precision selected, in meters.
-    Returns:
-        area (float) """
-
-    zoom = _convert_precision_to_zoom(precision)
-    tiles = burn(features, zoom)
-
-    return np.sum(_calculate_tile_area(tiles))
 
 
 class Singleton(type):
