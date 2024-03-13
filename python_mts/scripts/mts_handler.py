@@ -7,6 +7,7 @@ from urllib.parse import urlparse, parse_qs
 import re
 from dotenv import load_dotenv
 from requests_toolbelt import MultipartEncoder
+from supermercado.super_utils import filter_features
 
 from python_mts import utils, errors
 from python_mts.urls import Urls
@@ -97,7 +98,7 @@ class MtsHandlerBase:
 
         ts_id = self._username + "." + handle
         if not utils.validate_tileset_id(ts_id):
-            raise errors.TilesetNameError(ts_id)
+            raise errors.InvalidId(ts_id)
 
         url = self.urls.mkurl_ts(ts_id)
         body = self._mkbody_tileset(name, private, desc, recipe_path)
@@ -196,9 +197,7 @@ class MtsHandlerBase:
         if r.status_code != 200:
             raise errors.TilesetsError(r.text)
 
-        status = utils.mk_status(r)
-
-        return status
+        return utils.mk_status(r.json())
 
     def get_tilejson(self, handles, secure: bool = True):
         """ Get a tileset's corresponding tileJSON data.
@@ -427,9 +426,6 @@ class MtsHandlerBase:
 
         features = utils.enforce_islist(features)
         features = map(utils.load_feature, features)
-
-        filter_features = utils.load_module(
-            "supermercado.super_utils").filter_features
 
         area = 0
         if precision == "1cm" and not force_1cm:

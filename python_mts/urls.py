@@ -36,7 +36,6 @@ class Urls:
             ts_id (str): Tileset ID (username.handle).
             stage (str, optional): Job-stage filter. Defaults to None.
             limit (int, optional): Max number of jobs listed. Defaults to 100.
-
         Returns: 
             Tileset jobs URL (str): https://api.mapbox.com/tilesets/v1/{ts_id}/jobs?&{query_str}. """
 
@@ -54,7 +53,6 @@ class Urls:
             handles: Handles (identifiers) of tilesets. 
                 Combined with the username they form a tileset's id (username.handle).
             secure (bool): Force HTTPS. 
-
         Returns: 
             Tileset tileJSON data URL (str): https://api.mapbox.com/v4/{ts_ids}.json?access_token={token}. """
 
@@ -63,7 +61,7 @@ class Urls:
             ts_id = self._username + "." + t
             ids.append(ts_id)
             if not utils.validate_tileset_id(ts_id):
-                raise errors.TilesetNameError(ts_id)
+                raise errors.InvalidId(ts_id)
 
         url = f"https://api.mapbox.com/v4/{','.join(ids)}.json?access_token={self._token}"
 
@@ -78,7 +76,6 @@ class Urls:
         Args:
             ts_id (string): Tileset ID.
             job_id (string): Tileset job ID. 
-
         Returns: 
             Specific tileset job URL (str): https://api.mapbox.com/tilesets/v1/{ts_id}/jobs/{job_id}?&access_token={token}. """
 
@@ -102,9 +99,8 @@ class Urls:
             sortby (str, optional): Sorting preference.
                 Accepts "created" or "modified".
                 Defaults to None.
-
-            Returns: 
-                Tilesets list URL (str): https://api.mapbox.com/tilesets/v1/{username}?&{query_str}. """
+        Returns: 
+            Tilesets list URL (str): https://api.mapbox.com/tilesets/v1/{username}?&{query_str}. """
 
         params = utils.filter_missing_params(access_token=self._token,
                                              ts_type=ts_type,
@@ -120,7 +116,6 @@ class Urls:
 
         Args:
             ts_id (str): Tileset ID.
-
         Returns: 
             Tilesets recipe URL (str): https://api.mapbox.com/tilesets/v1/{ts_id}/recipe?access_token={token}. """
 
@@ -139,7 +134,6 @@ class Urls:
 
         Args:
             src_id (str): Source ID.
-
         Returns: 
             Generic source URL (str): https://api.mapbox.com/tilesets/v1/sources/{username}/{src_id}?access_token={token}. """
 
@@ -170,7 +164,6 @@ class Urls:
                 Defaults to 100.
             start (str, optional): Pagination key.
                 Defaults to None. 
-
         Returns:
             Activity report URL (str): https://api.mapbox.com/activity/v1/{username}/tilesets?{query_str} """
 

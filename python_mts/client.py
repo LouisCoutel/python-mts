@@ -6,11 +6,7 @@ class Client:
     """ Client. """
 
     def __init__(self):
-        self._session = utils._get_session()
-
-    def get_session(self):
-        """ Getter """
-        return self._session
+        self._session = utils.get_session()
 
     # REQUEST WRAPPERS
     def do_multipart(self, url: str, m, method: str):
