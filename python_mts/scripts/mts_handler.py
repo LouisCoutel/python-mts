@@ -3,12 +3,14 @@ import json
 import logging
 import os
 import tempfile
-from urllib.parse import urlencode, urlparse, parse_qs
+from urllib.parse import urlparse, parse_qs
 import re
 from dotenv import load_dotenv
 from requests_toolbelt import MultipartEncoder
 
 from python_mts import utils, errors
+from python_mts.urls import Urls
+from python_mts.client import Client
 
 load_dotenv()
 
@@ -20,281 +22,9 @@ class MtsHandlerBase:
     def __init__(self):
         self._username: str = os.getenv("MAPBOX_USER_NAME")
         self._token: str = os.getenv("MAPBOX_ACCESS_TOKEN")
-        self.ts_api = "https://api.mapbox.com/tilesets/v1"
-        self.styles_api = "https://api.mapbox.com/styles/v1"
-        self._default_recipe: str
-        self._json_indent: int = 4
+        self.urls = Urls()
+        self.client = Client()
         self._attribution: json = None
-        self._session = utils._get_session()
-
-    # REQUEST WRAPPERS
-    def _do_post(self, url: str, body=None):
-        s = self._session
-        if body:
-            r = s.post(url, json=body)
-        else:
-            r = s.post(url)
-        return r
-
-    def _do_patch(self, url: str, body=None):
-        s = self._session
-        if body:
-            r = s.patch(url, json=body)
-        else:
-            r = s.patch(url)
-        return r
-
-    def _do_put(self, url: str, body):
-        s = self._session
-        print(json)
-        return s.put(url, json=body)
-
-    def _do_get(self, url: str):
-        s = self._session
-        return s.get(url)
-
-    def _do_del(self, url: str):
-        s = self._session
-        return s.delete(url)
-
-    # GETTERS
-    def get_default_recipe(self):
-        """ Getter """
-        return self._default_recipe
-
-    def get_json_indent(self):
-        """ Getter """
-        return self._json_indent
-
-    def get_session(self):
-        """ Getter """
-        return self._session
-
-    # SETTERS
-    def set_default_recipe(self, path: str):
-        """ Select a file to be used as default recipe
-
-        Args:
-            path (str): File path
-        """
-
-        utils.validate_path(path)
-        self._default_recipe = os.path.abspath(path)
-
-    def set_indent(self, indent: int):
-        """ Set indentation preference for JSON data """
-
-        self._json_indent = indent
-
-    # URL BUILDERS
-    def _mkurl_ts(self, ts_id: str, publish: bool = None):
-        """ Generate the URL needed for most tileset operations.
-
-        Args:
-            ts_id (string): Tileset ID (username.handle)
-            publish (bool, optional): Option to get publish URL. Disabled by default.
-
-        Returns:
-            URL (string): URL for tileset operations
-        """
-
-        if publish:
-            return f"{self.ts_api}/{ts_id}/publish?access_token={self._token}"
-
-        return f"{self.ts_api}/{ts_id}?access_token={self._token}"
-
-    def _mkurl_ts_jobs(self, ts_id: str, stage: str = None, limit: int = 100):
-        """ Generate the URL needed for accessing a tileset's jobs
-
-        Args:
-            ts_id (str): Tileset ID (username.handle)
-            stage (str, optional): Job-stage filter. Defaults to None.
-            limit (int, optional): Max number of jobs listed. Defaults to 100.
-
-        Returns:
-            URL (string): URL for accessing a tileset's jobs
-        """
-        params = utils.filter_missing_params(
-            access_token=self._token, ts_id=ts_id, stage=stage, limit=limit)
-
-        query_str = urlencode(params)
-
-        url = f"{self.ts_api}/{ts_id}/jobs?&{query_str}"
-
-        return url
-
-    def _mkurl_tjson(self, handles: list[str], secure: bool):
-        """ Generate the URL needed for accessing a tileset's tileJSON.
-
-        Args:
-            handles (list of strings): Handles (name) of tilesets. 
-            Combined with the username they form a tileset's id (username.handle).
-            secure (boolean): Optional parameter that instructs Mapbox API to respond through HTTPS.
-
-        Raises:
-            errors.TilesetNameError: Custom Mapbox Exception
-
-        Returns:
-            URL (string): URL for accessing a tileset's tileJson
-        """
-
-        ids = []
-        for t in handles:
-            ts_id = self._username + "." + t
-            ids.append(ts_id)
-            if not utils.validate_tileset_id(ts_id):
-                raise errors.TilesetNameError(ts_id)
-
-        url = f"https://api.mapbox.com/v4/{','.join(ids)}.json?access_token={self._token}"
-
-        if secure:
-            url = url + "&secure"
-
-        return url
-
-    def _mkurl_ts_job(self, ts_id: str, job_id: str):
-        """ Generate the URL needed to access a specific tileset job
-
-        Args:
-            ts_id (string): Tileset ID
-            job_id (string): Tileset job ID
-
-        Returns:
-            URL (string): URL for accessing a tileset job
-        """
-
-        return f"{self.ts_api}/{ts_id}/jobs/{job_id}?access_token={self._token}"
-
-    def _mkurl_tslist(self,
-                      ts_type: str = None,
-                      limit: int = 100,
-                      visibility: str = None,
-                      sortby=None):
-        """ Generate the URL needed to list tilesets
-
-        Args:
-            ts_type (str, optional): Type of tilesets to list. Defaults to None.
-            limit (int): Max number of tilesets listed.
-                Max 500.
-                Defaults to None.
-            visibility (str, optional): Filter by visibility.
-                Accepts "public" or "private".
-                Defaults to None.
-            sortby (str, optional): Sorting preference.
-                Accepts "created" or "modified".
-                Defaults to None.
-
-        Returns:
-            URL (string): URL for tileset list
-        """
-
-        params = utils.filter_missing_params(access_token=self._token,
-                                             ts_type=ts_type,
-                                             limit=limit,
-                                             visibility=visibility,
-                                             sortby=sortby)
-        query_str = urlencode(params)
-
-        url = f"{self.ts_api}/{self._username}?{query_str}"
-
-        return url
-
-    def _mkurl_ts_rcp(self, ts_id: str):
-        """ Generate the URL needed to access a tileset's recipe
-
-        Args:
-            ts_id (str): Tileset ID
-
-        Returns:
-            URL (string): URL for tileset recipe
-        """
-
-        return f"{self.ts_api}/{ts_id}/recipe?access_token={self._token}"
-
-    def _mkurl_val_rcp(self):
-        """ Generate the URL needed for validating a tileset recipe
-
-        Returns:
-            URL (string): URL for recipe validation
-        """
-        return f"{self.ts_api}/validateRecipe?access_token={self._token}"
-
-    def _mkurl_src(self, src_id: str):
-        """ Generate the URL needed to access a specific source
-
-        Args:
-            src_id (str): Source ID
-
-        Returns:
-            URL (string): URL for source
-
-        """
-        return f"{self.ts_api}/sources/{self._username}/{src_id}?access_token={self._token}"
-
-    def _mkurl_srclist(self):
-        """ Generate the URL needed to list sources
-
-        Returns:
-            URL (string): URL for source list
-        """
-
-        return f"{self.ts_api}/sources/{self._username}?access_token={self._token}"
-
-    def _mkurl_activity(self,
-                        sortby: str = "requests",
-                        orderby: str = "desc",
-                        limit: int = 100,
-                        start: str = None):
-        """ Generate the URL needed to get an activity report
-
-        Args:
-            sortby (str, optional): Sort by requests or last modified. 
-                Defaults to "requests". 
-                Accepts "modified".
-            orderby (str, optional): Descending or ascending order. Defaults to "desc".
-            limit (int, optional): Max number of listed activities. Defaults to 100.
-            start (str, optional): Pagination key. Defaults to None.
-
-        Returns:
-            URL (string): URL for activity report
-        """
-
-        params = utils.filter_missing_params(
-            sortby=sortby, orderby=orderby, limit=limit, start=start)
-
-        query_str = urlencode(params)
-
-        return f"https://api.mapbox.com/activity/v1/{self._username}/tilesets?{query_str}"
-
-    def _mkurl_liststyles(self, draft: bool = False, limit: int = None, start_id: str = None):
-        """ Generate the URL needed to list styles"""
-        params = utils.filter_missing_params(
-            access_token=self._token, limit=limit, start_id=start_id)
-
-        query_str = urlencode(params)
-
-        url = f"{self.styles_api}/{self._username}"
-        url = url + "/draft" if draft else url
-
-        return url + f"?{query_str}"
-
-    # REQUESTS UTILS
-    def reformat_geojson(self, file, paths: list[str]):
-        """ Reformat geoJSON files to Mapbox specifications
-
-        Args:
-            paths (list): List of paths to source files.
-            no_validation (bool, optional): Skip validation.
-                Defaults to False.
-
-        """
-        for index, path in enumerate(paths):
-            feature = utils.load_feature(path)
-            utils.validate_geojson(index, feature)
-
-            file.write(
-                (json.dumps(feature, separators=(",", ":")) + "\n").encode("utf-8")
-            )
 
     def _mkbody_tileset(
             self,
@@ -304,10 +34,10 @@ class MtsHandlerBase:
             recipe_path: str = None,
             update: bool = False
     ):
-        """ Generate the request body for various tileset operations
+        """ Generate the request body for various tileset operations.
 
         Args:
-            name (str): Tileset name
+            name (str): Tileset name.
             private (bool): Set tileset visibility to private.
                 Defaults to True.
             desc (str, optional): Tileset description.
@@ -317,12 +47,8 @@ class MtsHandlerBase:
             update (bool, optional): Specify if the request body to be generated is for an update.
                 Defaults to False.
 
-        Raises:
-            errors.TilesetsError: Custom Mapbox Exception
-
         Returns:
-            body (dict): Request body
-        """
+            body (dict): Request body. """
 
         body = {}
         body["name"] = name
@@ -330,7 +56,7 @@ class MtsHandlerBase:
         body["private"] = private
 
         if not update:
-            recipe = recipe_path if recipe_path else self._default_recipe
+            recipe = recipe_path
             with open(recipe, encoding="utf-8") as json_recipe:
                 body["recipe"] = json.load(json_recipe)
 
@@ -342,28 +68,6 @@ class MtsHandlerBase:
                     "Unable to parse attribution JSON") from exc
 
         return body
-
-    # RESPONSES UTILS
-    def _mkstatus(self, response):
-        """ Parses an API response to get a tileset's current status from its latest job
-
-
-        Args:
-            response (API Response): Response to parse
-
-        Returns:
-            status (dict): Tileset status info
-        """
-
-        joblist = list(response.json())
-
-        status = {
-            "id": joblist[-1].get("tilesetId"),
-            "lastest_job": joblist[-1].get("id"),
-            "status": joblist[-1].get("stage"),
-        }
-
-        return status
 
     # TILESETS OPERATIONS
     def create_ts(
@@ -381,7 +85,7 @@ class MtsHandlerBase:
         and must be 32 characters or fewer.
 
         Args:
-            handle (str): Tileset handle
+            handle (str): Tileset handle.
             name (str): Tileset name.
                 Defaults to None.
             recipe_path (str, optional): Path to the recipe file.
@@ -389,39 +93,36 @@ class MtsHandlerBase:
             desc (str, optional): Tileset description.
                 Defaults to None.
             private (bool, optional): Set visibility to private.
-                Defaults to False.
+                Defaults to False. """
 
-        Returns:
-            r: API response
-        """
         ts_id = self._username + "." + handle
         if not utils.validate_tileset_id(ts_id):
             raise errors.TilesetNameError(ts_id)
 
-        url = self._mkurl_ts(ts_id)
+        url = self.urls.mkurl_ts(ts_id)
         body = self._mkbody_tileset(name, private, desc, recipe_path)
+        r = self.client.do_post(url, body=body)
 
-        r = self._do_post(url, body=body)
+        if r.status_code == 200:
+            content = r.json()
+            return content
 
-        return r
+        raise errors.TilesetsError(r.text)
 
     # Publish a specific tileset
 
     def publish_ts(self, handle: str):
-        """_summary_
+        """ Publish a tileset.
 
         Args:
-            handle (str): Tileset handle.
+            handle (str): Tileset handle. """
 
-        Returns:
-            r: API response
-        """
         ts_id = self._username + "." + handle
-        url = self._mkurl_ts(ts_id, publish=True)
-        r = self._do_post(url)
+        url = self.urls.mkurl_ts(ts_id, publish=True)
+        r = self.client.do_post(url)
         if r.status_code == 200:
             response_msg = r.json()
-            print(json.dumps(response_msg, indent=self._json_indent))
+            print(json.dumps(response_msg))
             studio_url = f"https://studio.mapbox.com/tilesets/{ts_id}"
             msg = f"Tileset job received. Visit {studio_url} to view the status of your tileset."
             print(msg)
@@ -429,58 +130,50 @@ class MtsHandlerBase:
         else:
             logging.error(r.text)
 
-        return r
+        content = r.json()
+        return content
 
     def update_ts(self, handle: str, name: str = None, desc: str = None, private: bool = False):
-        """ Update a tileset's informations
+        """ Update a tileset's informations.
 
         Args:
             handle (str): Tileset handle
             name (str, optional): Tileset name. Defaults to None.
             desc (str, optional): Tileset description. Defaults to None.
             private (bool, optional): Set visibility to private.
-                Defaults to False.
+                Defaults to False. """
 
-        Raises:
-            errors.TilesetsError: Custom Mapbox Exception
-
-        Returns:
-            r: API response
-        """
         ts_id = self._username + "." + handle
-        url = self._mkurl_ts(ts_id)
+        url = self.urls.mkurl_ts(ts_id)
         body = self._mkbody_tileset(name, private, desc, update=True)
-        r = self._do_patch(url, body=body)
+        r = self.client.do_patch(url, body=body)
 
         if r.status_code != 204:
             raise errors.TilesetsError(r.text)
 
-        return r
+        return f"Tileset {handle} successfully updated."
 
     def delete_ts(self, handle: str):
-        """ Delete a specific tileset
+        """ Delete a specific tileset.
 
         Args:
             handle (str): Tileset handle
 
         Raises:
-            errors.TilesetsError: Custom Mapbox Exception
-            e: Re-raised Custom Mapbox Exception
+            errors.TilesetsError: Custom exception.
+            e: Re-raised Custom Mapbox Exception. """
 
-        Returns:
-            r: API response
-        """
         ts_id = self._username + "." + handle
-        url = self._mkurl_ts(ts_id)
+        url = self.urls.mkurl_ts(ts_id)
 
         try:
-            utils.time_check("deletion-ts")
-            r = self._do_del(url)
+            r = self.client.do_del(url)
             with open("deletion-ts.txt", "w", encoding="utf-8") as f:
                 f.close()
 
             if r.status_code in (200, 204):
-                return r
+                content = r.json()
+                return content
 
             raise errors.TilesetsError(r.text)
 
@@ -488,75 +181,62 @@ class MtsHandlerBase:
             raise e
 
     def get_ts_status(self, handle: str):
-        """ Get a tileset's current status
+        """ Get a tileset's current status.
 
         Args:
-            handle (str): Tileset handle
-
-        Raises:
-            errors.TilesetsError: Custom Mapbox Exception
+            handle (str): Tileset handle.
 
         Returns:
-            status (dict): Tileset status information based on last job executed.
-        """
+            status (dict): Tileset status information based on last job executed. """
 
         ts_id = self._username + "." + handle
-        url = self._mkurl_ts_jobs(ts_id)
-        r = self._do_get(url)
+        url = self.urls.mkurl_ts_jobs(ts_id)
+        r = self.client.do_get(url)
 
         if r.status_code != 200:
             raise errors.TilesetsError(r.text)
 
-        status = self._mkstatus(r)
+        status = utils.mk_status(r)
 
         return status
 
     def get_tilejson(self, handles, secure: bool = True):
-        """ Get a tileset's corresponding tileJson data
+        """ Get a tileset's corresponding tileJSON data.
 
         Args:
             handles (str or list[str]): A single tileset handle or a list of handles.
-            secure (bool, optional): Force request to use HTTPS. Defaults to True.
-
-        Raises:
-            errors.TilesetsError: Custom Mapbox Exception
-
-        Returns:
-            r: API response
-        """
+            secure (bool, optional): Force request to use HTTPS. Defaults to True. """
 
         handles = utils.enforce_islist(handles)
 
-        url = self._mkurl_tjson(handles, secure)
-        print(url)
-        r = self._do_get(url)
+        url = self.urls.mkurl_tjson(handles, secure)
+        r = self.client.do_get(url)
 
         if r.status_code == 200:
-            return r
+            content = r.json()
+            return content
 
         raise errors.TilesetsError(r.text)
 
     def get_ts_jobs(self, handle: str, stage: str = None, limit: int = 100, job_id: str = None):
-        """ Gets either a list of jobs or a single specific job corresponding to a tileset
+        """ Gets either a list of jobs or a single specific job corresponding to a tileset.
 
         Args:
-            handle (str): Tileset handle
+            handle (str): Tileset handle.
             stage (str, optional): Filter jobs by stage. Defaults to None.
             limit (int, optional): Max number of jobs listed. Defaults to 100.
-            job_id (str, optional): Get only a specific job. Defaults to None.
-
-        Returns:
-            r: API response
-        """
+            job_id (str, optional): Get only a specific job. Defaults to None. """
 
         ts_id = self._username + "." + handle
 
-        url = self._mkurl_ts_job(ts_id, job_id) if job_id else self._mkurl_ts_jobs(
+        url = self.urls.mkurl_ts_job(
+            ts_id, job_id) if job_id else self.urls.mkurl_ts_jobs(
             ts_id, stage=stage, limit=limit)
 
-        r = self._do_get(url)
+        r = self.client.do_get(url)
 
-        return r
+        content = r.json()
+        return content
 
     def list_tsets(
             self,
@@ -565,10 +245,11 @@ class MtsHandlerBase:
             sortby: str = None,
             limit: int = 100
     ):
-        """ Get a list of uploaded tileset
+        """ Get a list of uploaded tilesets.
 
         Args:
-            ts_type (str, optional): Type of tilesets to list. Defaults to None.
+            ts_type (str, optional): Type of tilesets to list.
+                Defaults to None.
             limit (int): Max number of tilesets listed.
                 Max 500.
                 Defaults to None.
@@ -577,109 +258,70 @@ class MtsHandlerBase:
                 Defaults to None.
             sortby (str, optional): Sorting preference.
                 Accepts "created" or "modified".
-                Defaults to None.
+                Defaults to None. """
 
-        Raises:
-            errors.TilesetsError: _description_
-
-        Returns:
-            _type_: _description_
-        """
-        url = self._mkurl_tslist(ts_type, limit, visibility, sortby)
-        r = self._do_get(url)
+        url = self.urls.mkurl_tslist(ts_type, limit, visibility, sortby)
+        r = self.client.do_get(url)
 
         if r.status_code == 200:
-            return r
+            content = r.json()
+            return content
 
         raise errors.TilesetsError(r.text)
 
     def validate_recipe(self, path: str):
-        """ Check if recipe is valid according to Mapbox's specifications
+        """ Check if recipe is valid according to Mapbox's specifications.
 
         Args:
-            path (str): Path to recipe file.
-
-        Returns:
-            r: API response
-        """
+            path (str): Path to recipe file. """
 
         utils.validate_path(path)
-        url = self._mkurl_val_rcp()
+        url = self.urls.mkurl_val_rcp()
 
         with open(path, encoding="utf-8") as json_recipe:
             recipe_json = json.load(json_recipe)
 
-            r = self._do_put(url, body=recipe_json)
-            return r
+            r = self.client.do_put(url, body=recipe_json)
+            content = r.json()
+            return content
 
     def get_ts_recipe(self, handle: str):
-        """ Get a specific tileset's recipe
+        """ Get a specific tileset's recipe.
 
         Args:
-            handle (str): Tileset handle
-
-        Raises:
-            errors.TilesetsError: Custom Mapbox Exception
-
-        Returns:
-            r: API response
-        """
+            handle (str): Tileset handle. """
 
         ts_id = self._username + "." + handle
-        url = self._mkurl_ts_rcp(ts_id)
-        r = self._do_get(url)
+        url = self.urls.mkurl_ts_rcp(ts_id)
+        r = self.client.do_get(url)
 
         if r.status_code == 200:
-            return r
+            content = r.json()
+            return content
 
         raise errors.TilesetsError(r.text)
 
     def update_ts_recipe(self, handle: str, path: str):
-        """ Update a tileset's recipe
+        """ Update a tileset's recipe.
 
         Args:
-            handle (str): Tileset handle
-            path (str): Path to recipe file
+            handle (str): Tileset handle.
+            path (str): Path to recipe file. """
 
-        Raises:
-            errors.TilesetsError: Custom Mapbox Exception
-
-        Returns:
-            r: API response
-        """
         ts_id = self._username + "." + handle
         utils.validate_path(path)
-        url = self._mkurl_ts_rcp(ts_id)
+        url = self.urls.mkurl_ts_rcp(ts_id)
 
         with open(path, encoding="utf-8") as json_recipe:
             recipe_json = json.load(json_recipe)
-            r = self._do_patch(url, body=recipe_json)
+            r = self.client.do_patch(url, body=recipe_json)
 
-            if r.status_code in (201, 204):
-                return r
+            if r.status_code == 204:
+                return f"Tileset {handle}'s recipe successfully updated."
 
             raise errors.TilesetsError(r.text)
 
     # SOURCE OPERATIONS
-    def validate_source(self, paths):
-        """ Check if a source is valid according to Mapbox's specification
-
-        Args:
-            paths (str or list[str]): Path or list of paths to source files
-
-        Returns:
-            True (bool): Source files are valid
-        """
-
-        paths = utils.enforce_islist(paths)
-
-        for index, path in enumerate(paths):
-            utils.validate_path(path)
-            ft = utils.load_feature(path)
-            utils.validate_geojson(index, ft)
-
-        return True
-
     def upload_source(
             self,
             src_id: str,
@@ -691,34 +333,29 @@ class MtsHandlerBase:
         Args:
             src_id (str): ID for the source to be created or an existing source.
             paths (string or list[str]): Path or list of paths of GeoJSON files.
-            no_validation (bool, optional): Skip source validation. Defaults to False.
-            replace (bool, optional): Replace an existing source. Defaults to False. """
+            no_validation (bool, optional): Skip source validation.
+                Defaults to False.
+            replace (bool, optional): Replace an existing source.
+                Defaults to False. """
 
         paths = utils.enforce_islist(paths)
-        url = self._mkurl_src(src_id)
+        url = self.urls.mkurl_src(src_id)
         method = "post"
 
         if replace:
             method = "put"
 
         with tempfile.TemporaryFile() as file:
-            self.reformat_geojson(file, paths)
+            utils.reformat_geojson(file, paths)
 
             file.seek(0)
 
             m = MultipartEncoder(fields={"file": ("file", file)})
-            r = getattr(self._session, method)(
-                url,
-                data=m,
-                headers={
-                    "Content-Disposition": "multipart/form-data",
-                    "Content-type": m.content_type,
-                },
-            )
+            r = self.client.do_multipart(url, m, method)
 
         if r.status_code == 200:
-            print(json.dumps(r.json(), indent=self._json_indent))
-            return r
+            content = r.json()
+            return content
 
         raise errors.TilesetsError(r.text)
 
@@ -728,8 +365,8 @@ class MtsHandlerBase:
         Args:
             src_id (str): Source ID. """
 
-        url = self._mkurl_src(src_id)
-        r = self._session.get(url)
+        url = self.urls.mkurl_src(src_id)
+        r = self.client.do_get(url)
 
         if r.status_code == 200:
             content = r.json()
@@ -744,31 +381,29 @@ class MtsHandlerBase:
             src_id (str): Source ID.
 
         Raises:
-            errors.TilesetsError:  custom exception.
+            errors.TilesetsError: Custom exception.
             e: Re-raised Mapbox exception. """
 
-        utils.time_check("deletion-src")
-        url = self._mkurl_src(src_id)
-        r = self._do_del(url)
-        with open("deletion-src.txt", "w", encoding="utf-8") as f:
-            f.close()
+        url = self.urls.mkurl_src(src_id)
+        r = self.client.do_del(url)
 
         if r.status_code == 204:
-            return r
+            return f"Source {src_id} successfully deleted."
 
         raise errors.TilesetsError(r.text)
 
     def list_sources(self):
-        """ List all currently uploaded sources """
+        """ List all uploaded sources. """
 
-        url = self._mkurl_srclist()
-        r = self._do_get(url)
+        url = self.urls.mkurl_srclist()
+        r = self.client.do_get(url)
 
         if r.status_code == 200:
             for source in r.json():
                 print(source["id"])
 
-            return r
+            content = r.json()
+            return content
 
         raise errors.TilesetsError(r.text)
 
@@ -784,7 +419,8 @@ class MtsHandlerBase:
         Args:
             features: List of GeoJSON features.
             precision (str): Selected estimate precision.
-            no_validation (bool, optional): Skip validation. Defaults to False.
+            no_validation (bool, optional): Skip validation.
+                Defaults to False.
             force_1cm (bool, optional): Force 1cm precision. 
                 This is an optional feature that needs to be agreed on with Mapbox's teams.
                 Defaults to False. """
@@ -826,7 +462,6 @@ class MtsHandlerBase:
             "pricing_docs": "https://www.mapbox.com/pricing/#tilesets",
         })
 
-        print(message)
         return message
 
     def list_activity(
@@ -836,7 +471,7 @@ class MtsHandlerBase:
             limit: int = 100,
             start: str = None
     ):
-        """ Get a list of tileset operations
+        """ Get an account's tileset-related activity report.
 
         Args:
             sortby (str, optional): Selected sorting. Defaults to "requests".
@@ -846,8 +481,8 @@ class MtsHandlerBase:
 
         """
 
-        url = self._mkurl_activity(sortby, orderby, limit, start)
-        r = self._do_get(url)
+        url = self.urls.mkurl_activity(sortby, orderby, limit, start)
+        r = self.client.do_get(url)
 
         if r.status_code == 200:
             if r.headers.get("Link"):
@@ -867,18 +502,20 @@ class MtsHandlerBase:
         """ Retrieve a list of styles.
 
         Args:
-            draft (bool, optional): Request draft styles only. Defaults to False.
-            limit (int, optional): Set a limit to the number of styles listed. Defaults to None.
-            start_id (str, optional): Start the list at a specific style ID. Defaults to None.
+            draft (bool, optional): Request draft styles only.
+                Defaults to False.
+            limit (int, optional): Set a limit to the number of styles listed.
+                Defaults to None.
+            start_id (str, optional): Start the list at a specific style ID.
+                Defaults to None. """
 
-        """
+        url = self.urls.mkurl_liststyles(draft, limit, start_id)
 
-        url = self._mkurl_liststyles(draft, limit, start_id)
-
-        r = self._do_get(url)
+        r = self.client.do_get(url)
 
         if r.status_code == 200:
-            return r
+            content = r.json()
+            return content
 
         raise errors.StylesError("Unable to fetch list of styles")
 

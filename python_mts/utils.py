@@ -265,8 +265,61 @@ def _calculate_tile_area(tile: list):
     )
 
 
+def reformat_geojson(file, paths: list[str]):
+    """ Reformat geoJSON files to Mapbox specifications.
+
+    Args:
+        paths (list): List of paths to source files.
+        no_validation (bool, optional): Skip validation.
+            Defaults to False. """
+
+    for index, path in enumerate(paths):
+        feature = load_feature(path)
+        validate_geojson(index, feature)
+        file.write(
+            (json.dumps(feature, separators=(",", ":")) + "\n").encode("utf-8")
+        )
+
+
+def mk_status(response):
+    """ Parses an API response to get a tileset's current status from its latest job.
+
+    Args:
+        response (API Response): Response to parse
+
+    Returns:
+        status (dict): Tileset status info. """
+
+    joblist = list(response.json())
+
+    status = {
+        "id": joblist[-1].get("tilesetId"),
+        "lastest_job": joblist[-1].get("id"),
+        "status": joblist[-1].get("stage"),
+    }
+
+    return status
+
+
+def validate_source(paths):
+    """ Check if a source is valid according to Mapbox's specification
+    Args:
+        paths (str or list[str]): Path or list of paths to source files
+    Returns:
+        True (bool): Source files are valid
+    """
+
+    paths = enforce_islist(paths)
+    for index, path in enumerate(paths):
+        validate_path(path)
+        ft = load_feature(path)
+        validate_geojson(index, ft)
+    return True
+
+
 def calculate_tiles_area(features: list, precision: str):
-    """ Calculate features area """
+    """ Calculate features area. """
+
     burn = load_module("supermercado.burntiles").burn
 
     zoom = _convert_precision_to_zoom(precision)
