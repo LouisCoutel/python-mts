@@ -7,9 +7,9 @@ import time
 
 from requests import Session
 import geojson
+
 import python_mts
 from python_mts import errors
-
 
 def load_feature(path: str):
     """ Load a geoJSON feature as a dict.
@@ -58,7 +58,6 @@ def get_token():
     raise errors.TilesetsError(
         "No access token provided. Please set the MAPBOX_ACCESS_TOKEN env var")
 
-
 def enforce_islist(val):
     """ Wraps a string in a list or do nothing if it is already a list. """
 
@@ -70,7 +69,6 @@ def enforce_islist(val):
 
 def _validate_token(username: str, token: str):
     """ Check if Mapbox token is valid
-
     Raises:
         errors.TilesetsError: Token doesn't contain payload
         errors.TilesetsError: Token username doesn't match provided username
@@ -79,7 +77,7 @@ def _validate_token(username: str, token: str):
 
     # Not sure if I'll ever need this but let's keep it for now
     token_parts = token.split(".")
-
+    
     if len(token_parts) < 2:
         raise errors.TilesetsError(
             f"Token {token} does not contain a payload component")
@@ -137,7 +135,6 @@ def validate_tileset_id(tileset_id: str):
         return True
 
     raise errors.InvalidId(tileset_id)
-
 
 def paths_to_features(iterable: list[str]):
     """ Open geojson features from files paths """
@@ -202,7 +199,6 @@ def mk_status(res_data):
 
     return status
 
-
 def validate_source(paths):
     """ Check if a source is valid according to Mapbox's specification.
 
@@ -222,7 +218,6 @@ def validate_source(paths):
 
     return True
 
-
 class Singleton(type):
     """ Singleton meta-class to be paired with any base class """
 
@@ -231,6 +226,5 @@ class Singleton(type):
     def __call__(cls, *args, **kwargs):
         if cls not in cls._instances:
             cls._instances[cls] = super(
-                Singleton, cls).__call__(*args, **kwargs)
 
         return cls._instances[cls]

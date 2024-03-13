@@ -127,6 +127,7 @@ class MtsHandlerBase:
 
         raise errors.TilesetsError(r.text)
 
+
     def update_ts(self, handle: str, name: str = None, desc: str = None, private: bool = False):
         """ Update a tileset's informations.
 
@@ -160,6 +161,7 @@ class MtsHandlerBase:
         ts_id = self._username + "." + handle
         url = self.urls.mkurl_ts(ts_id)
 
+
         r = self.client.do_del(url)
 
         if r.status_code in (200, 204):
@@ -185,6 +187,7 @@ class MtsHandlerBase:
             raise errors.TilesetsError(r.text)
 
         return utils.mk_status(r.json())
+
 
     def get_tilejson(self, handles, secure: bool = True):
         """ Get a tileset's corresponding tileJSON data.
