@@ -40,13 +40,9 @@ class InvalidGeoJSON(Exception):
         self.feature = feature
 
 
-class CalcAreaError(Exception):
+class EstimateAreaError(Exception):
     """ Error when calculating a feature's area. """
 
     def __init__(self, message: str):
         """ Exception constructor """
         self.message = message
-
-
-class MinPrecisionError(CalcAreaError):
-    """ Error when asking to be precise to the centimeter. """

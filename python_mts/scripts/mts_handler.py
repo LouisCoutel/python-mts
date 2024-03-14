@@ -446,9 +446,14 @@ class MtsHandlerBase:
         # It is a list because calculate_tiles_area does not work with a stream
         features = list(filter_features(features))
 
-        area = area_utils.calculate_tiles_area(features, precision)
+        try:
+            area = area_utils.calculate_tiles_area(features, precision)
 
-        return f"{area}km2"
+            return f"{area}km2"
+
+        except Exception as e:
+            raise errors.EstimateAreaError(
+                f"Something went wrong when trying to estimate area: {e}") from e
 
     def list_styles(self, draft: bool = False, limit: int = None, start_id: str = None):
         """ Retrieve a list of styles.
